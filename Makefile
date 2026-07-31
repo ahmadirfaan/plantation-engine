@@ -1,3 +1,5 @@
+export PATH := $(PATH):$(shell go env GOPATH)/bin
+
 .PHONY: clean all init generate generate_mocks
 
 all: build/main
