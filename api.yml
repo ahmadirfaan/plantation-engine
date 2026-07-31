@@ -1,17 +1,7 @@
-# This is the OpenAPI specification for your service. It is used to generate the client code.
-# To generate the server code, use the Gradle task `openApiGenerate`. The 
-# generated code will be placed in `build/generate-resources/main`.
-#
-# We will evaluate you based on how well you design your API.
-# 1. How well it follows REST principles.
-# 2. How easy it is to understand and use.
-#
-# References
-# 1. https://swagger.io/specification/
 openapi: "3.0.0"
 info:
   version: 1.0.0
-  title: User Service
+  title: Plantation Engine Service
   license:
     name: MIT
 servers:
@@ -30,7 +20,7 @@ paths:
         '200':
           description: Test return
           content:
-            application/json:    
+            application/json:
               schema:
                 $ref: "#/components/schemas/HelloResponse"
         '404':
@@ -39,8 +29,198 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /estate:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEstateRequest"
+
+      summary: This is a API endpoint to generate the estate with width and length
+        representing a palm oil plantation estate
+      responses:
+        '201':
+          description: estate has successfully created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedResponse"
+        '400':
+          description: Invalid input or malformed request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+        '500':
+          description: Indicates that response is error from the server side, need check in the server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /estate/{estate_id}/tree:
+    post:
+      summary: Add a tree to an estate
+      description: Stores tree data in a given estate with the ID `id`.
+      operationId: addTreeToEstate
+      parameters:
+        - name: estate_id
+          in: path
+          required: true
+          description: The ID of the estate to add the tree to.
+          schema:
+            type: string
+            example: "5a9dcbba-e9d4-4814-8f5d-bef3edc426fe"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTreeRequest"
+
+      responses:
+        '201':
+          description: Tree created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedResponse"
+        '400':
+          description: Invalid input value or format (e.g., negative number, zero, or coordinates out of bounds).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        '404':
+          description: Estate not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        '409':
+          description: Block already has a tree
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /estate/{estate_id}/stats:
+    get:
+      summary: get stats summary for estate
+      operationId: getEstateSummary
+      description: get stats estate summary using estate_id the identifier
+      parameters:
+        - name: estate_id
+          in: path
+          required: true
+          description: The ID of the estate to get the stats of stats.
+          schema:
+            type: string
+            example: "5a9dcbba-e9d4-4814-8f5d-bef3edc426fe"
+      responses:
+        '200':
+          description: stats estate will return
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetStatsEstateResponse"
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /estate/{estate_id}/drone-plan:
+    get:
+      summary: get drone plan total distance
+      operationId: getDistanceForDronePlan
+      description: get drone plan total distance for estate, the query using estateId
+      parameters:
+        - name: estate_id
+          in: path
+          required: true
+          description: The ID of the estate to get the stats of stats.
+          schema:
+            type: string
+            example: "5a9dcbba-e9d4-4814-8f5d-bef3edc426fe"
+        - name: max_distance
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+          description: maximum distance that drone travel before the drone replace the battery
+      responses:
+        '200':
+          description: stats estate will return
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetDronePlanDistance"
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
+    GetDronePlanDistance:
+      type: object
+      required:
+        - distance
+      properties:
+        distance:
+          type: integer
+          example: 54
+        rest:
+          required:
+            - x
+            - y
+          type: object
+          properties:
+            x:
+              type: integer
+              description: Column position (West-East)
+              example: 4
+            y:
+              type: integer
+              description: Row position (South-North)
+              example: 3
+    GetStatsEstateResponse:
+      type: object
+      required:
+        - count
+        - max
+        - min
+        - median
+      properties:
+        count:
+          type: integer
+          example: 3
+        min:
+          type: integer
+          example: 3
+        max:
+          type: integer
+          example: 5
+        median:
+          type: number
+          example: 4.5
     HelloResponse:
       type: object
       required:
@@ -49,6 +229,54 @@ components:
         message:
           type: string
           example: Hello, World!
+    CreateEstateRequest:
+      type: object
+      required:
+        - width
+        - length
+      properties:
+        width:
+          type: integer
+          description: width of estate
+          maximum: 5000
+          minimum: 1
+          example: 10
+        length:
+          type: integer
+          description: length of estate
+          maximum: 5000
+          minimum: 1
+          example: 5
+    CreateTreeRequest:
+      type: object
+      properties:
+        x:
+          type: integer
+          description: The x-coordinate of the tree plot (West-East axis).
+          example: 100
+        y:
+          type: integer
+          description: The y-coordinate of the tree plot (South-North axis).
+          example: 200
+        height:
+          type: integer
+          description: The height of the tree (in meters).
+          minimum: 1
+          maximum: 30
+          example: 10
+      required:
+        - x
+        - y
+        - height
+    CreatedResponse:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          example: "5a9dcbba-e9d4-4814-8f5d-bef3edc426fe"
+          description: indicate that schema already created and return the id of the schemas
     ErrorResponse:
       type: object
       required:
@@ -56,3 +284,5 @@ components:
       properties:
         message:
           type: string
+          description: the error message for the error
+          example: "Error Message"

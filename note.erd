@@ -1,0 +1,36 @@
+table estate
+- id (PK)
+- name
+- location
+- created_at
+- updated_at
+
+
+table block
+- id (PK)
+- estate_id (FK → Estate.id)
+- x_coord (int)
+- y_coord (int)
+- created_at
+- updated_at
+
+table tree
+- id (PK)
+- block_id (FK → block_id)
+- estate_id (FK -> estate_id)
+- min_diameter (integer)
+- max_diameter (integer)
+- height (integer)
+- created_at
+- updated_at
+
+Estate stats
+- estate_id (PK)
+- min_height_tree (double)
+- max_height_tree (double)
+- sum_tree (integer)
+- median_tree (double)
+- last_calculated_at
+- created_at
+- updated_at
+- total_distance_drone

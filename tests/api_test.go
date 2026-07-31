@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -199,6 +200,7 @@ func CreateNormalTestCase(name string, a []any) TestCase {
 				Expect:  ExpectGetStatsOk(step.([]any)[1].(int), step.([]any)[2].(int), step.([]any)[3].(int), step.([]any)[4].(int)),
 			})
 		case GetDronePlan:
+			time.Sleep(500 * time.Millisecond)
 			tc.Steps = append(tc.Steps, TestCaseStep{
 				Request: SendRequestGetDronePlan(step.([]any)[1].(int)),
 				Expect:  ExpectGetDronePlanOk(step.([]any)[2].(int)),
@@ -250,6 +252,7 @@ func ExpectNewTreeOk() ExpectFunc {
 func SendRequestGetStats() RequestFunc {
 	return func(t *testing.T, ctx context.Context, tc *TestCase) (*http.Request, error) {
 		id := tc.Steps[0].Result["id"].(string)
+		time.Sleep(100 * time.Millisecond)
 		return http.NewRequest("GET", ApiUrl+"/estate/"+id+"/stats", nil)
 	}
 }
@@ -270,6 +273,7 @@ func SendRequestGetDronePlan(distance int) RequestFunc {
 		} else {
 			url = fmt.Sprintf("%s/estate/%s/drone-plan?distance=%d", ApiUrl, id, distance)
 		}
+		time.Sleep(100 * time.Millisecond)
 		return http.NewRequest("GET", url, nil)
 	}
 }
@@ -281,7 +285,7 @@ func ExpectGetDronePlanOk(distance int) ExpectFunc {
 }
 
 func RequireReturnIsUUID(t *testing.T, resp *http.Response, data map[string]any) {
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
 	RequireIsUUID(t, data["id"].(string))
 }
 
