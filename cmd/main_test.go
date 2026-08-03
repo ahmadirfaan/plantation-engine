@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -130,7 +131,7 @@ func TestGetStatsEstateShowErrorNotFound(t *testing.T) {
 	app.ServeHTTP(rec, req)
 
 	var resp generated.ErrorResponse
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Equal(t, rec.Code, http.StatusNotFound)
 	assert.Equal(t, "estate not found", resp.Message)
 }
@@ -150,7 +151,7 @@ func TestGetDronePlanShowErrorNotFound(t *testing.T) {
 	app.ServeHTTP(rec, req)
 
 	var resp generated.ErrorResponse
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Equal(t, rec.Code, http.StatusNotFound)
 	assert.Equal(t, "estate not found", resp.Message)
 }

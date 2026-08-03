@@ -74,7 +74,7 @@ func ValidateEstateId(estateId string) error {
 
 func validParameter(parameterName string, value int, minValue int, maxValue int) error {
 	if value < minValue || value > maxValue {
-		return errors.New(fmt.Sprintf("%s must be between %d and %d", parameterName, minValue, maxValue))
+		return fmt.Errorf("%s must be between %d and %d", parameterName, minValue, maxValue)
 	}
 	return nil
 }

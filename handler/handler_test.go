@@ -20,6 +20,7 @@ import (
 	"github.com/labstack/echo/v4"
 	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -164,7 +165,7 @@ func createEstate(t *testing.T, body string) generated.CreatedResponse {
 	assert.Equal(t, http.StatusCreated, rec.Code)
 
 	var resp generated.CreatedResponse
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	return resp
 }
 
@@ -238,7 +239,7 @@ func addTreeToEstate(t *testing.T, body string, estateId string) generated.Creat
 	assert.Equal(t, http.StatusCreated, rec.Code)
 
 	var resp generated.CreatedResponse
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.NotNil(t, resp)
 	return resp
 }
@@ -279,7 +280,7 @@ func TestGetSummaryEstate_InternalServerError(t *testing.T) {
 	_ = server.GetEstateSummary(ctx, estateId)
 
 	var resp generated.ErrorResponse
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.NotNil(t, resp)
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	assert.Equal(t, "internal server error", resp.Message)
@@ -295,7 +296,7 @@ func TestServer_GetDistanceForDronePlan_InternalServerError(t *testing.T) {
 	_ = server.GetDistanceForDronePlan(ctx, estateId, generated.GetDistanceForDronePlanParams{})
 
 	var resp generated.ErrorResponse
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.NotNil(t, resp)
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	assert.Equal(t, "internal server error", resp.Message)
@@ -325,7 +326,7 @@ func waitForStatsToBeCalculated(t *testing.T, estateId string, timeout time.Dura
 		_ = server.GetEstateSummary(ctx, estateId)
 
 		var resp generated.GetStatsEstateResponse
-		json.Unmarshal(rec.Body.Bytes(), &resp)
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 		assert.NotNil(t, resp)
 		if resp.Max == 5 && resp.Min == 3 && resp.Count == 3 && resp.Median == 4.0 {
 			validateDronePlan(t, estateId)
@@ -343,7 +344,7 @@ func validateDronePlan(t *testing.T, estateId string) {
 	_ = server.GetDistanceForDronePlan(ctx, estateId, generated.GetDistanceForDronePlanParams{})
 
 	var resp generated.GetDronePlanDistance
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.NotNil(t, resp)
 	assert.Equal(t, 54, resp.Distance)
 }
