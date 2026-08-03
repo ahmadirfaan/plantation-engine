@@ -17,12 +17,12 @@
 </p>
 
 <p align="center">
-  <a href="#features">Features</a> ·
-  <a href="#architecture">Architecture</a> ·
-  <a href="#getting-started">Getting Started</a> ·
-  <a href="#api">API Reference</a> ·
-  <a href="#testing">Testing</a> ·
-  <a href="#project-layout">Project Layout</a>
+  <a href="#-features">Features</a> ·
+  <a href="#%EF%B8%8F-architecture">Architecture</a> ·
+  <a href="#-getting-started">Getting Started</a> ·
+  <a href="#-api-reference">API Reference</a> ·
+  <a href="#-testing">Testing</a> ·
+  <a href="#-project-layout">Project Layout</a>
 </p>
 
 ---
