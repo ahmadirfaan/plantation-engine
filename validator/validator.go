@@ -14,11 +14,11 @@ func ValidateRequestCreateEstate(request generated.CreateEstateRequest) error {
 	length := request.Length
 	width := request.Width
 
-	if err := validParameter("width", width, 1, 50000); err != nil {
+	if err := validParameter("width", width, 1, 5000); err != nil {
 		return err
 	}
 
-	if err := validParameter("length", length, 1, 50000); err != nil {
+	if err := validParameter("length", length, 1, 5000); err != nil {
 		return err
 	}
 	return nil
@@ -35,11 +35,11 @@ func ValidateRequestCreateTree(req generated.CreateTreeRequest, estateId string)
 	x := req.X
 	y := req.Y
 	height := req.Height
-	if err := validParameter("x", x, 1, 50000); err != nil {
+	if err := validParameter("x", x, 1, 5000); err != nil {
 		return err
 	}
 
-	if err := validParameter("y", y, 1, 50000); err != nil {
+	if err := validParameter("y", y, 1, 5000); err != nil {
 		return err
 	}
 

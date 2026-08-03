@@ -72,10 +72,6 @@ func traverseGrid(grid [][]int, maxDistance int, checkRest bool) (int, *model.Co
 	return totalDistance, nil
 }
 
-func getRestCoordinate(x, y int) *model.Coordinate {
-	return &model.Coordinate{X: x, Y: y}
-}
-
 func createGrid(estate model.Estate, trees []model.Tree) [][]int {
 	width, length := estate.Width, estate.Length
 	grid := make([][]int, width)

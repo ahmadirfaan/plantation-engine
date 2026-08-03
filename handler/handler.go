@@ -27,7 +27,7 @@ func (s *Server) PostEstate(ctx echo.Context) error {
 
 		// Business logic
 		func(req generated.CreateEstateRequest) (generated.CreatedResponse, error) {
-			id, err := s.EstateUseCase.CreateEstate(req)
+			id, err := s.EstateUseCase.CreateEstate(ctx.Request().Context(), req)
 			if err != nil {
 				return generated.CreatedResponse{}, errors.New("500|" + err.Error())
 			}
@@ -48,7 +48,7 @@ func (s *Server) AddTreeToEstate(ctx echo.Context, estateId string) error {
 			return validator.ValidateRequestCreateTree(req, estateId)
 		},
 		func(req generated.CreateTreeRequest) (generated.CreatedResponse, error) {
-			id, err := s.TreeUseCase.AddTreeToEstate(estateId, req)
+			id, err := s.TreeUseCase.AddTreeToEstate(ctx.Request().Context(), estateId, req)
 			if err != nil {
 				return generated.CreatedResponse{}, err
 			}
@@ -65,7 +65,7 @@ func (s *Server) GetEstateSummary(ctx echo.Context, estateId string) error {
 			return validator.ValidateEstateId(estateId)
 		},
 		func(req any) (generated.GetStatsEstateResponse, error) {
-			summaryEstate, err := s.StatsEstateUseCase.GetStatsEstate(estateId)
+			summaryEstate, err := s.StatsEstateUseCase.GetStatsEstate(ctx.Request().Context(), estateId)
 			if err != nil {
 				return generated.GetStatsEstateResponse{}, err
 			}
@@ -82,7 +82,7 @@ func (s *Server) GetDistanceForDronePlan(ctx echo.Context, estateId string, para
 			return validator.ValidateEstateId(estateId)
 		},
 		func(req any) (generated.GetDronePlanDistance, error) {
-			dronePlanDistance, err := s.StatsEstateUseCase.GetDronePlanDistance(estateId, params)
+			dronePlanDistance, err := s.StatsEstateUseCase.GetDronePlanDistance(ctx.Request().Context(), estateId, params)
 			if err != nil {
 				return generated.GetDronePlanDistance{}, err
 			}

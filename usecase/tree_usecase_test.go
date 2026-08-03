@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -24,69 +25,63 @@ func assertErrorMessage(t *testing.T, err error, treeId *string, expectedErrorMe
 }
 
 func TestAddTreeQueryEstateErrorOrNotExist(t *testing.T) {
+	ctx := context.Background()
 
 	//error when query from DB
 	newTreeUseCase := NewTreeUseCase(&mockEstateRepositoryError{}, &mockTreeRepositoryError{}, &mockBlockRepositoryError{}, &mockStatsEstateUseCase{})
 	id := uuid.New().String()
-	treeId, err := newTreeUseCase.AddTreeToEstate(id, buildTreeRequest(5, 1, 25))
+	treeId, err := newTreeUseCase.AddTreeToEstate(ctx, id, buildTreeRequest(5, 1, 25))
 	assertErrorMessage(t, err, treeId, "error Connection Timeout")
 
 	//error when estate not exist
 	newTreeUseCase = NewTreeUseCase(&mockEstateRepositoryQueryIdNotExist{}, &mockTreeRepositoryError{}, &mockBlockRepositoryError{}, &mockStatsEstateUseCase{})
-	treeId, err = newTreeUseCase.AddTreeToEstate(id, buildTreeRequest(5, 1, 25))
+	treeId, err = newTreeUseCase.AddTreeToEstate(ctx, id, buildTreeRequest(5, 1, 25))
 	assertErrorMessage(t, err, treeId, "404|estate does not exist")
 
 	//error when add tree is above the width estate
 	newTreeUseCase = NewTreeUseCase(&mockEstateRepositoryQueryIdEstateExist{}, &mockTreeRepositoryError{}, &mockBlockRepositoryError{}, &mockStatsEstateUseCase{})
-	treeId, err = newTreeUseCase.AddTreeToEstate(id, buildTreeRequest(5, 1, 25))
+	treeId, err = newTreeUseCase.AddTreeToEstate(ctx, id, buildTreeRequest(5, 1, 25))
 	assertErrorMessage(t, err, treeId, "400|X request above from data")
 
 	//error when add tree is above the length estate
 	newTreeUseCase = NewTreeUseCase(&mockEstateRepositoryQueryIdEstateExist{}, &mockTreeRepositoryError{}, &mockBlockRepositoryError{}, &mockStatsEstateUseCase{})
-	treeId, err = newTreeUseCase.AddTreeToEstate(id, buildTreeRequest(3, 4, 25))
+	treeId, err = newTreeUseCase.AddTreeToEstate(ctx, id, buildTreeRequest(3, 4, 25))
 	assertErrorMessage(t, err, treeId, "400|Y request above from data")
 
 }
 
 func TestAddTreeQueryBlockErrorOrAlreadyExist(t *testing.T) {
+	ctx := context.Background()
 
 	//connection timeout when query by id block
 	newTreeUseCase := NewTreeUseCase(&mockEstateRepositoryQueryIdEstateExist{}, &mockTreeRepositoryError{}, &mockBlockRepositoryError{}, &mockStatsEstateUseCase{})
 	estateId := uuid.New().String()
 
-	treeId, err := newTreeUseCase.AddTreeToEstate(estateId, buildTreeRequest(3, 3, 25))
+	treeId, err := newTreeUseCase.AddTreeToEstate(ctx, estateId, buildTreeRequest(3, 3, 25))
 	assertErrorMessage(t, err, treeId, "connection timeout")
 
 	//block already has tree
 	newTreeUseCase = NewTreeUseCase(&mockEstateRepositoryQueryIdEstateExist{}, &mockTreeRepositoryError{}, &mockBlockRepositoryBlockExist{}, &mockStatsEstateUseCase{})
-	treeId, err = newTreeUseCase.AddTreeToEstate(estateId, buildTreeRequest(3, 3, 25))
+	treeId, err = newTreeUseCase.AddTreeToEstate(ctx, estateId, buildTreeRequest(3, 3, 25))
 	assertErrorMessage(t, err, treeId, "409|block already has a tree")
 }
 
-func TestAddTreeSavingBlockError(t *testing.T) {
-	//connection timeout when saving block
-	newTreeUseCase := NewTreeUseCase(&mockEstateRepositoryQueryIdEstateExist{}, &mockTreeRepositoryError{}, &mockBlockRepositorySavingBlockError{}, &mockStatsEstateUseCase{})
-	estateId := uuid.New().String()
-
-	treeId, err := newTreeUseCase.AddTreeToEstate(estateId, buildTreeRequest(3, 3, 25))
-	assertErrorMessage(t, err, treeId, "connection timeout")
-}
-
-func TestAddTreeSavingTreeError(t *testing.T) {
-	//connection timeout when saving tree
+func TestAddTreeSavingBlockAndTreeError(t *testing.T) {
+	ctx := context.Background()
+	//connection timeout when saving block and tree
 	newTreeUseCase := NewTreeUseCase(&mockEstateRepositoryQueryIdEstateExist{}, &mockTreeRepositoryError{}, &mockBlockRepositorySuccess{}, &mockStatsEstateUseCase{})
 	estateId := uuid.New().String()
 
-	treeId, err := newTreeUseCase.AddTreeToEstate(estateId, buildTreeRequest(3, 3, 25))
+	treeId, err := newTreeUseCase.AddTreeToEstate(ctx, estateId, buildTreeRequest(3, 3, 25))
 	assertErrorMessage(t, err, treeId, "connection timeout")
 }
 
 func TestAddTreeSavingTreeSuccess(t *testing.T) {
-	//connection timeout when query by id block
+	ctx := context.Background()
 	newTreeUseCase := NewTreeUseCase(&mockEstateRepositoryQueryIdEstateExist{}, &mockTreeRepositorySaveTreeSuccess{}, &mockBlockRepositorySuccess{}, &mockStatsEstateUseCase{})
 	estateId := uuid.New().String()
 
-	treeId, err := newTreeUseCase.AddTreeToEstate(estateId, buildTreeRequest(3, 3, 25))
+	treeId, err := newTreeUseCase.AddTreeToEstate(ctx, estateId, buildTreeRequest(3, 3, 25))
 	assert.Nil(t, err)
 	assert.NotNil(t, treeId)
 	assert.True(t, strings.TrimSpace(*treeId) != "", "tree id should not be empty")

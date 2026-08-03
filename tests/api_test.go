@@ -271,7 +271,7 @@ func SendRequestGetDronePlan(distance int) RequestFunc {
 		if distance == 0 {
 			url = fmt.Sprintf("%s/estate/%s/drone-plan", ApiUrl, id)
 		} else {
-			url = fmt.Sprintf("%s/estate/%s/drone-plan?distance=%d", ApiUrl, id, distance)
+			url = fmt.Sprintf("%s/estate/%s/drone-plan?max_distance=%d", ApiUrl, id, distance)
 		}
 		time.Sleep(100 * time.Millisecond)
 		return http.NewRequest("GET", url, nil)

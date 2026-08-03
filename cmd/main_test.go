@@ -22,8 +22,27 @@ var (
 	app *echo.Echo
 )
 
+// requireDatabase skips the test in short mode (make test) or when no
+// postgres is reachable at DATABASE_URL, so the suite stays green in CI
+// without a live database. Integration coverage is provided by the
+// testcontainers-backed tests in integration/postgres_integration_test.go.
+func requireDatabase(t *testing.T) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("skipping database test in short mode")
+	}
+	db, err := sql.Open("postgres", "postgres://postgres:postgres@localhost:5432/database?sslmode=disable")
+	if err != nil {
+		t.Skipf("skipping, database not reachable: %v", err)
+	}
+	if err := db.Ping(); err != nil {
+		t.Skipf("skipping, database not reachable: %v", err)
+	}
+	db.Close()
+}
+
 func TestNewServerApp(t *testing.T) {
-	app = NewServerApp()
+	app = NewServerApp(nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/hello?id=123", nil)
 	rec := httptest.NewRecorder()
@@ -34,7 +53,21 @@ func TestNewServerApp(t *testing.T) {
 
 }
 
+// openDB returns a connection to the local test database. Call after
+// requireDatabase has confirmed postgres is reachable.
+func openDB(t *testing.T) *sql.DB {
+	t.Helper()
+	db, err := sql.Open("postgres", "postgres://postgres:postgres@localhost:5432/database?sslmode=disable")
+	if err != nil {
+		t.Fatalf("failed to open database: %v", err)
+	}
+	return db
+}
+
 func Test_EndToEnd_Happy_Path(t *testing.T) {
+	requireDatabase(t)
+	db := openDB(t)
+	defer db.Close()
 
 	t.Setenv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/database?sslmode=disable")
 	body := `{"width":1,"length":5}`
@@ -42,7 +75,7 @@ func Test_EndToEnd_Happy_Path(t *testing.T) {
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 
-	app = NewServerApp()
+	app = NewServerApp(db)
 	app.ServeHTTP(rec, req)
 
 	// Check if the response ID is returned
@@ -83,13 +116,17 @@ func Test_EndToEnd_Happy_Path(t *testing.T) {
 }
 
 func TestGetStatsEstateShowErrorNotFound(t *testing.T) {
+	requireDatabase(t)
+	db := openDB(t)
+	defer db.Close()
+
 	t.Setenv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/database?sslmode=disable")
 
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/estate/%s/stats", uuid.New().String()), nil)
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 
-	app = NewServerApp()
+	app = NewServerApp(db)
 	app.ServeHTTP(rec, req)
 
 	var resp generated.ErrorResponse
@@ -99,13 +136,17 @@ func TestGetStatsEstateShowErrorNotFound(t *testing.T) {
 }
 
 func TestGetDronePlanShowErrorNotFound(t *testing.T) {
+	requireDatabase(t)
+	db := openDB(t)
+	defer db.Close()
+
 	t.Setenv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/database?sslmode=disable")
 
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/estate/%s/drone-plan", uuid.New().String()), nil)
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 
-	app = NewServerApp()
+	app = NewServerApp(db)
 	app.ServeHTTP(rec, req)
 
 	var resp generated.ErrorResponse

@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ahmadirfaan/plantation-engine/generated"
@@ -8,9 +9,10 @@ import (
 )
 
 func Test_CreateEstateError_WhenInsertingToDB(t *testing.T) {
+	ctx := context.Background()
 
 	estateUseCase := NewEstateUseCase(&mockEstateRepositoryError{})
-	_, err := estateUseCase.CreateEstate(generated.CreateEstateRequest{
+	_, err := estateUseCase.CreateEstate(ctx, generated.CreateEstateRequest{
 		Width:  50,
 		Length: 10,
 	})
@@ -19,9 +21,10 @@ func Test_CreateEstateError_WhenInsertingToDB(t *testing.T) {
 }
 
 func Test_CreateEstateSuccess_WhenInsertingToDB(t *testing.T) {
+	ctx := context.Background()
 
 	estateUseCase := NewEstateUseCase(&mockEstateRepositorySuccess{})
-	id, err := estateUseCase.CreateEstate(generated.CreateEstateRequest{
+	id, err := estateUseCase.CreateEstate(ctx, generated.CreateEstateRequest{
 		Width:  50,
 		Length: 10,
 	})

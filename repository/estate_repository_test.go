@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"errors"
 	"github.com/google/uuid"
 	"testing"
@@ -20,7 +21,7 @@ func TestSaveEstate_Success(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	repo := NewEstateRepository(db)
-	id, err := repo.SaveEstate(50, 100)
+	id, err := repo.SaveEstate(context.Background(), 50, 100)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, id)
@@ -38,7 +39,7 @@ func TestSaveEstate_InsertFails(t *testing.T) {
 		WillReturnError(errors.New("insert failed"))
 
 	repo := NewEstateRepository(db)
-	id, err := repo.SaveEstate(50, 100)
+	id, err := repo.SaveEstate(context.Background(), 50, 100)
 
 	assert.Nil(t, id)
 	assert.EqualError(t, err, "insert failed")
@@ -56,7 +57,7 @@ func TestEstateRepository_QueryByEstateId_QueryFails(t *testing.T) {
 		WillReturnError(errors.New("query failed"))
 
 	repo := NewEstateRepository(db)
-	estate, err := repo.QueryByEstateId(estateId)
+	estate, err := repo.QueryByEstateId(context.Background(), estateId)
 
 	assert.Nil(t, estate)
 	assert.EqualError(t, err, "query failed")
@@ -74,7 +75,7 @@ func TestEstateRepository_QueryByEstateId_QueryNoRows(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name"})) // empty result s
 
 	repo := NewEstateRepository(db)
-	estate, err := repo.QueryByEstateId(estateId)
+	estate, err := repo.QueryByEstateId(context.Background(), estateId)
 
 	assert.Nil(t, estate)
 	assert.Nil(t, err)
@@ -93,7 +94,7 @@ func TestEstateRepository_QueryByEstateId_QueryExist(t *testing.T) {
 		) // empty result s
 
 	repo := NewEstateRepository(db)
-	estate, err := repo.QueryByEstateId(estateId)
+	estate, err := repo.QueryByEstateId(context.Background(), estateId)
 
 	assert.Nil(t, err)
 	assert.NotNil(t, estate)

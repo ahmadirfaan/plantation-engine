@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -24,13 +24,13 @@ func HandlerTemplate[Req any, Res any](
 
 	err := doValidate(req)
 	if err != nil {
-		log.Println("validation error:", err)
+		slog.Warn("validation error", "error", err)
 		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: err.Error()})
 	}
 
 	res, err := doHandle(req)
 	if err != nil {
-		log.Println("doHandle error:", err)
+		slog.Warn("handle error", "error", err)
 		return handleErrorFromDoHandle(ctx, err)
 	}
 
