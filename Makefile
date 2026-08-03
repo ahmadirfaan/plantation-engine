@@ -1,6 +1,6 @@
 export PATH := $(PATH):$(shell go env GOPATH)/bin
 
-.PHONY: clean all init generate generate_mocks
+.PHONY: clean all init generate test test_api integration-test
 
 all: build/main
 
@@ -17,25 +17,20 @@ init: clean generate
 
 test:
 	go clean -testcache
-	go test -short -coverprofile coverage.out -short -v ./...
+	go test -short -coverprofile coverage.out -v $(shell go list ./... | grep -v /generated)
 	go tool cover -func=coverage.out
-
 
 test_api:
 	go clean -testcache
 	go test ./tests/...
 
-generate: generated generate_mocks
+integration-test:
+	go clean -testcache
+	TESTCONTAINERS=1 go test -v ./integration/...
+
+generate: generated
 
 generated: api.yml
 	@echo "Generating files..."
 	mkdir generated || true
-	oapi-codegen --package generated -generate types,server,spec $< > generated/api.gen.go
-
-INTERFACES_GO_FILES := $(shell find repository -name "interfaces.go")
-INTERFACES_GEN_GO_FILES := $(INTERFACES_GO_FILES:%.go=%.mock.gen.go)
-
-generate_mocks: $(INTERFACES_GEN_GO_FILES)
-$(INTERFACES_GEN_GO_FILES): %.mock.gen.go: %.go
-	@echo "Generating mocks $@ for $<"
-	mockgen -source=$< -destination=$@ -package=$(shell basename $(dir $<))
+	go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen --package generated -generate types,server,spec $< > generated/api.gen.go

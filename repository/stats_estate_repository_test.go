@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"regexp"
@@ -37,7 +38,7 @@ func TestQueryAllTree_Success(t *testing.T) {
 		WithArgs(estateID).
 		WillReturnRows(mockRows)
 
-	result, err := repo.QueryAllTree(estateID)
+	result, err := repo.QueryAllTree(context.Background(), estateID)
 	assert.NoError(t, err)
 	assert.Len(t, result, 2)
 
@@ -61,7 +62,7 @@ func TestQueryAllTree_Fail(t *testing.T) {
 		WithArgs(estateID).
 		WillReturnError(errors.New("connection timeout"))
 
-	result, err := repo.QueryAllTree(estateID)
+	result, err := repo.QueryAllTree(context.Background(), estateID)
 	assert.Nil(t, result)
 	assert.ErrorContains(t, err, "timeout")
 }
@@ -80,7 +81,7 @@ func TestQueryAllTree_FailWhenScan(t *testing.T) {
 		WithArgs(estateID).
 		WillReturnRows(mockRows)
 
-	result, err := repo.QueryAllTree(estateID)
+	result, err := repo.QueryAllTree(context.Background(), estateID)
 	assert.Nil(t, result)
 	assert.ErrorContains(t, err, "Scan error")
 }
@@ -95,7 +96,7 @@ func TestSaveStatsEstate_Success(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	repo := NewStatsEstateRepository(db)
-	err = repo.SaveStatsEstate(model.EstateStats{EstateId: uuid.New().String(), SumTree: 5, MinHeightTree: 5, MaxHeightTree: 5, MedianHeightTree: 15.6, TotalDistanceDrone: 200})
+	err = repo.SaveStatsEstate(context.Background(), model.EstateStats{EstateId: uuid.New().String(), SumTree: 5, MinHeightTree: 5, MaxHeightTree: 5, MedianHeightTree: 15.6, TotalDistanceDrone: 200})
 
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -111,7 +112,7 @@ func TestSaveStatsEstate_InsertFails(t *testing.T) {
 		WillReturnError(errors.New("insert failed"))
 
 	repo := NewStatsEstateRepository(db)
-	err = repo.SaveStatsEstate(model.EstateStats{EstateId: uuid.New().String(), SumTree: 5, MinHeightTree: 5, MaxHeightTree: 5, MedianHeightTree: 15.6, TotalDistanceDrone: 200})
+	err = repo.SaveStatsEstate(context.Background(), model.EstateStats{EstateId: uuid.New().String(), SumTree: 5, MinHeightTree: 5, MaxHeightTree: 5, MedianHeightTree: 15.6, TotalDistanceDrone: 200})
 
 	assert.EqualError(t, err, "insert failed")
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -127,7 +128,7 @@ func TestSaveStatsEstate_QueryById_Failed(t *testing.T) {
 		WillReturnError(errors.New("queryById failed"))
 
 	repo := NewStatsEstateRepository(db)
-	_, err = repo.QueryById(uuid.New().String())
+	_, err = repo.QueryById(context.Background(), uuid.New().String())
 
 	assert.EqualError(t, err, "queryById failed")
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -143,7 +144,7 @@ func TestSaveStatsEstate_QueryById_ErrNoRows(t *testing.T) {
 		WillReturnError(sql.ErrNoRows)
 
 	repo := NewStatsEstateRepository(db)
-	statsEstate, err := repo.QueryById(uuid.New().String())
+	statsEstate, err := repo.QueryById(context.Background(), uuid.New().String())
 
 	assert.Nil(t, statsEstate)
 	assert.Nil(t, err)
@@ -164,7 +165,7 @@ func TestSaveStatsEstate_QueryById_Success(t *testing.T) {
 			AddRow(estateId, 3, 5, 4, 3, 54, nil, time.Now(), time.Now()))
 
 	repo := NewStatsEstateRepository(db)
-	statsEstate, err := repo.QueryById(estateId)
+	statsEstate, err := repo.QueryById(context.Background(), estateId)
 
 	assert.Nil(t, err)
 	assert.NotNil(t, statsEstate)

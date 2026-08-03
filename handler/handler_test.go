@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -19,6 +20,7 @@ import (
 	"github.com/labstack/echo/v4"
 	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -29,13 +31,13 @@ var (
 
 type mockEstateUseCaseError struct{}
 
-func (m *mockEstateUseCaseError) CreateEstate(req generated.CreateEstateRequest) (*string, error) {
+func (m *mockEstateUseCaseError) CreateEstate(ctx context.Context, req generated.CreateEstateRequest) (*string, error) {
 	return nil, errors.New("mock create estate error")
 }
 
 type mockTreeUseCaseError struct{}
 
-func (m mockTreeUseCaseError) AddTreeToEstate(estateId string, request generated.CreateTreeRequest) (*string, error) {
+func (m mockTreeUseCaseError) AddTreeToEstate(ctx context.Context, estateId string, request generated.CreateTreeRequest) (*string, error) {
 	return nil, errors.New("mock add tree error")
 }
 
@@ -99,7 +101,7 @@ func TestPostEstateWidthExceedLimit(t *testing.T) {
 
 	_ = server.PostEstate(ctx)
 
-	assertBadRequest(t, rec, "width must be between 1 and 50000")
+	assertBadRequest(t, rec, "width must be between 1 and 5000")
 
 }
 
@@ -109,7 +111,7 @@ func TestPostEstateLengthExceedLimit(t *testing.T) {
 
 	_ = server.PostEstate(ctx)
 
-	assertBadRequest(t, rec, "length must be between 1 and 50000")
+	assertBadRequest(t, rec, "length must be between 1 and 5000")
 }
 
 func TestGetHello(t *testing.T) {
@@ -140,9 +142,19 @@ func Test_PostEstate_CreateEstateError(t *testing.T) {
 }
 
 func Test_PostEstate_CreateEstateSuccess(t *testing.T) {
+	requireTestDB(t)
 	body := `{"width":10,"length":1000}`
 	resp := createEstate(t, body)
 	assert.NotNil(t, resp.Id)
+}
+
+func requireTestDB(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping E2E test in short mode")
+	}
+	if err := db.Ping(); err != nil {
+		t.Skipf("skipping E2E test, database not reachable: %v", err)
+	}
 }
 
 func createEstate(t *testing.T, body string) generated.CreatedResponse {
@@ -153,7 +165,7 @@ func createEstate(t *testing.T, body string) generated.CreatedResponse {
 	assert.Equal(t, http.StatusCreated, rec.Code)
 
 	var resp generated.CreatedResponse
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	return resp
 }
 
@@ -163,7 +175,7 @@ func TestAddTreeToEstate_LongitudeExceedLimit(t *testing.T) {
 	body := `{"x":100000,"y":6000,"height":20}`
 	rec, ctx := createContextAndRecordHttp(body, "/estate/"+estateId+"/tree")
 	_ = server.AddTreeToEstate(ctx, estateId)
-	assertBadRequest(t, rec, "x must be between 1 and 50000")
+	assertBadRequest(t, rec, "x must be between 1 and 5000")
 
 }
 
@@ -172,7 +184,7 @@ func TestAddTreeToEstate_LatitudeExceedLimit(t *testing.T) {
 	body := `{"x":100,"y":100000,"height":20}`
 	rec, ctx := createContextAndRecordHttp(body, "/estate/"+estateId+"/tree")
 	_ = server.AddTreeToEstate(ctx, estateId)
-	assertBadRequest(t, rec, "y must be between 1 and 50000")
+	assertBadRequest(t, rec, "y must be between 1 and 5000")
 }
 
 func TestAddTreeToEstate_HeightExceedLimit(t *testing.T) {
@@ -208,6 +220,7 @@ func TestAddTreeToEstate_InternalServerError(t *testing.T) {
 }
 
 func TestAddTreeToEstate_Success(t *testing.T) {
+	requireTestDB(t)
 
 	bodyPostEstate := `{"width":1000,"length":10}`
 	createResponseSuccess := createEstate(t, bodyPostEstate)
@@ -226,7 +239,7 @@ func addTreeToEstate(t *testing.T, body string, estateId string) generated.Creat
 	assert.Equal(t, http.StatusCreated, rec.Code)
 
 	var resp generated.CreatedResponse
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.NotNil(t, resp)
 	return resp
 }
@@ -240,6 +253,7 @@ func TestGetSummaryEstate_ErrorEstateId(t *testing.T) {
 }
 
 func TestGetSummaryEstate_And_DistanceDronePlan_Success(t *testing.T) {
+	requireTestDB(t)
 
 	bodyCreateEstate := `{"width":1,"length":5}`
 	respCreatedEstate := createEstate(t, bodyCreateEstate)
@@ -266,7 +280,7 @@ func TestGetSummaryEstate_InternalServerError(t *testing.T) {
 	_ = server.GetEstateSummary(ctx, estateId)
 
 	var resp generated.ErrorResponse
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.NotNil(t, resp)
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	assert.Equal(t, "internal server error", resp.Message)
@@ -282,7 +296,7 @@ func TestServer_GetDistanceForDronePlan_InternalServerError(t *testing.T) {
 	_ = server.GetDistanceForDronePlan(ctx, estateId, generated.GetDistanceForDronePlanParams{})
 
 	var resp generated.ErrorResponse
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.NotNil(t, resp)
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	assert.Equal(t, "internal server error", resp.Message)
@@ -292,7 +306,7 @@ func TestServer_GetDistanceForDronePlan_InternalServerError(t *testing.T) {
 type mockStatsEstateUseCaseError struct {
 }
 
-func (m *mockStatsEstateUseCaseError) GetDronePlanDistance(estateId string, params generated.GetDistanceForDronePlanParams) (generated.GetDronePlanDistance, error) {
+func (m *mockStatsEstateUseCaseError) GetDronePlanDistance(ctx context.Context, estateId string, params generated.GetDistanceForDronePlanParams) (generated.GetDronePlanDistance, error) {
 	return generated.GetDronePlanDistance{}, errors.New("internal server error")
 }
 
@@ -301,7 +315,7 @@ func (m *mockStatsEstateUseCaseError) PublishCalculationStatsEstate(estateId str
 	panic("implement me")
 }
 
-func (m *mockStatsEstateUseCaseError) GetStatsEstate(estateId string) (generated.GetStatsEstateResponse, error) {
+func (m *mockStatsEstateUseCaseError) GetStatsEstate(ctx context.Context, estateId string) (generated.GetStatsEstateResponse, error) {
 	return generated.GetStatsEstateResponse{}, errors.New("internal server error")
 }
 
@@ -312,7 +326,7 @@ func waitForStatsToBeCalculated(t *testing.T, estateId string, timeout time.Dura
 		_ = server.GetEstateSummary(ctx, estateId)
 
 		var resp generated.GetStatsEstateResponse
-		json.Unmarshal(rec.Body.Bytes(), &resp)
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 		assert.NotNil(t, resp)
 		if resp.Max == 5 && resp.Min == 3 && resp.Count == 3 && resp.Median == 4.0 {
 			validateDronePlan(t, estateId)
@@ -330,7 +344,7 @@ func validateDronePlan(t *testing.T, estateId string) {
 	_ = server.GetDistanceForDronePlan(ctx, estateId, generated.GetDistanceForDronePlanParams{})
 
 	var resp generated.GetDronePlanDistance
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.NotNil(t, resp)
 	assert.Equal(t, 54, resp.Distance)
 }

@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -9,29 +10,32 @@ import (
 	"github.com/google/uuid"
 )
 
+// mockEstateRepositoryError returns errors on every estate operation.
 type mockEstateRepositoryError struct{}
 
-func (m *mockEstateRepositoryError) QueryByEstateId(id string) (*model.Estate, error) {
+func (m *mockEstateRepositoryError) QueryByEstateId(ctx context.Context, id string) (*model.Estate, error) {
 	return nil, errors.New("error Connection Timeout")
 }
 
-func (m *mockEstateRepositoryError) SaveEstate(width int, length int) (*string, error) {
+func (m *mockEstateRepositoryError) SaveEstate(ctx context.Context, width int, length int) (*string, error) {
 	return nil, errors.New("mock create estate error")
 }
 
+// mockEstateRepositoryQueryIdNotExist returns no estate and no error.
 type mockEstateRepositoryQueryIdNotExist struct{}
 
-func (m *mockEstateRepositoryQueryIdNotExist) QueryByEstateId(id string) (*model.Estate, error) {
+func (m *mockEstateRepositoryQueryIdNotExist) QueryByEstateId(ctx context.Context, id string) (*model.Estate, error) {
 	return nil, nil
 }
 
-func (m *mockEstateRepositoryQueryIdNotExist) SaveEstate(width int, length int) (*string, error) {
+func (m *mockEstateRepositoryQueryIdNotExist) SaveEstate(ctx context.Context, width int, length int) (*string, error) {
 	return nil, nil
 }
 
+// mockEstateRepositoryQueryIdEstateExist returns an existing 3x3 estate.
 type mockEstateRepositoryQueryIdEstateExist struct{}
 
-func (m *mockEstateRepositoryQueryIdEstateExist) QueryByEstateId(id string) (*model.Estate, error) {
+func (m *mockEstateRepositoryQueryIdEstateExist) QueryByEstateId(ctx context.Context, id string) (*model.Estate, error) {
 	timeNow := time.Now()
 	return &model.Estate{
 		Id:        id,
@@ -42,134 +46,108 @@ func (m *mockEstateRepositoryQueryIdEstateExist) QueryByEstateId(id string) (*mo
 	}, nil
 }
 
-func (m *mockEstateRepositoryQueryIdEstateExist) SaveEstate(width int, length int) (*string, error) {
+func (m *mockEstateRepositoryQueryIdEstateExist) SaveEstate(ctx context.Context, width int, length int) (*string, error) {
 	return nil, nil
 }
 
+// mockEstateRepositorySuccess returns a fresh id on save, no estate on query.
 type mockEstateRepositorySuccess struct{}
 
-func (m *mockEstateRepositorySuccess) QueryByEstateId(id string) (*model.Estate, error) {
+func (m *mockEstateRepositorySuccess) QueryByEstateId(ctx context.Context, id string) (*model.Estate, error) {
 	return nil, nil
 }
 
-func (m *mockEstateRepositorySuccess) SaveEstate(width int, length int) (*string, error) {
+func (m *mockEstateRepositorySuccess) SaveEstate(ctx context.Context, width int, length int) (*string, error) {
+	uuidString := uuid.New().String()
+	return &uuidString, nil
+}
+
+// mockTreeRepositoryError returns an error on SaveBlockAndTree.
+type mockTreeRepositoryError struct{}
+
+func (m *mockTreeRepositoryError) SaveBlockAndTree(ctx context.Context, estateId string, x int, y int, height int) (*string, error) {
+	return nil, errors.New("connection timeout")
+}
+
+// mockTreeRepositorySaveTreeSuccess returns a fresh id on SaveBlockAndTree.
+type mockTreeRepositorySaveTreeSuccess struct{}
+
+func (m *mockTreeRepositorySaveTreeSuccess) SaveBlockAndTree(ctx context.Context, estateId string, x int, y int, height int) (*string, error) {
+	uuidString := uuid.New().String()
+	return &uuidString, nil
+}
+
+// mockBlockRepositoryError returns an error when querying a block.
+type mockBlockRepositoryError struct{}
+
+func (m *mockBlockRepositoryError) QueryByEstateIdAndBlockCoordinate(ctx context.Context, estateId string, x int, y int) (*model.Block, error) {
+	return nil, errors.New("connection timeout")
+}
+
+// mockBlockRepositoryBlockExist returns an existing block.
+type mockBlockRepositoryBlockExist struct{}
+
+func (m *mockBlockRepositoryBlockExist) QueryByEstateIdAndBlockCoordinate(ctx context.Context, estateId string, x int, y int) (*model.Block, error) {
+	timeNow := time.Now()
 	id := uuid.New().String()
-	return &id, nil
-}
-
-type mockTreeRepositoryError struct {
-}
-
-func (m *mockTreeRepositoryError) SaveTree(blockId string, estateId string, height int) (*string, error) {
-	return nil, errors.New("connection timeout")
-}
-
-type mockTreeRepositorySaveTreeSuccess struct {
-}
-
-func (m *mockTreeRepositorySaveTreeSuccess) SaveTree(blockId string, estateId string, height int) (*string, error) {
-	treeId := uuid.New().String()
-	return &treeId, nil
-}
-
-type mockBlockRepositoryError struct {
-}
-
-func (m *mockBlockRepositoryError) QueryByEstateIdAndBlockCoordinate(id string, x int, y int) (*model.Block, error) {
-	return nil, errors.New("connection timeout")
-}
-
-func (m *mockBlockRepositoryError) SaveBlock(estateId string, x int, y int) (*string, error) {
-	return nil, errors.New("connection timeout")
-}
-
-type mockBlockRepositoryBlockExist struct {
-}
-
-func (m *mockBlockRepositoryBlockExist) QueryByEstateIdAndBlockCoordinate(id string, x int, y int) (*model.Block, error) {
-	now := time.Now()
 	return &model.Block{
-		EstateId:  id,
+		Id:        id,
+		EstateId:  estateId,
 		BlockX:    x,
 		BlockY:    y,
-		CreatedAt: &now,
-		UpdatedAt: &now,
-		Id:        uuid.New().String(),
+		CreatedAt: &timeNow,
+		UpdatedAt: &timeNow,
 	}, nil
 }
 
-func (m *mockBlockRepositoryBlockExist) SaveBlock(estateId string, x int, y int) (*string, error) {
-	blockId := uuid.New().String()
-	return &blockId, nil
-}
+// mockBlockRepositorySuccess returns no existing block.
+type mockBlockRepositorySuccess struct{}
 
-type mockBlockRepositorySavingBlockError struct {
-}
-
-func (m *mockBlockRepositorySavingBlockError) QueryByEstateIdAndBlockCoordinate(id string, x int, y int) (*model.Block, error) {
+func (m *mockBlockRepositorySuccess) QueryByEstateIdAndBlockCoordinate(ctx context.Context, estateId string, x int, y int) (*model.Block, error) {
 	return nil, nil
 }
 
-func (m *mockBlockRepositorySavingBlockError) SaveBlock(estateId string, x int, y int) (*string, error) {
+// mockStatsEstateUseCase is a no-op stats use case.
+type mockStatsEstateUseCase struct{}
+
+func (m *mockStatsEstateUseCase) GetDronePlanDistance(ctx context.Context, estateId string, params generated.GetDistanceForDronePlanParams) (generated.GetDronePlanDistance, error) {
+	panic("not expected to be called")
+}
+
+func (m *mockStatsEstateUseCase) GetStatsEstate(ctx context.Context, estateId string) (generated.GetStatsEstateResponse, error) {
+	panic("not expected to be called")
+}
+
+func (m *mockStatsEstateUseCase) PublishCalculationStatsEstate(estateId string) {
+	// no-op
+}
+
+// mockStatsEstateRepositoryError returns an error on QueryById.
+type mockStatsEstateRepositoryError struct{}
+
+func (m mockStatsEstateRepositoryError) QueryById(ctx context.Context, estateId string) (*model.EstateStats, error) {
 	return nil, errors.New("connection timeout")
 }
 
-type mockBlockRepositorySuccess struct {
+func (m mockStatsEstateRepositoryError) QueryAllTree(ctx context.Context, estateId string) ([]model.Tree, error) {
+	panic("not expected to be called")
 }
 
-func (m *mockBlockRepositorySuccess) QueryByEstateIdAndBlockCoordinate(id string, x int, y int) (*model.Block, error) {
+func (m mockStatsEstateRepositoryError) SaveStatsEstate(ctx context.Context, estateStats model.EstateStats) error {
+	panic("not expected to be called")
+}
+
+// mockStatsEstateQueryByIdNil returns no stats and no error.
+type mockStatsEstateQueryByIdNil struct{}
+
+func (m mockStatsEstateQueryByIdNil) QueryById(ctx context.Context, estateId string) (*model.EstateStats, error) {
 	return nil, nil
 }
 
-func (m *mockBlockRepositorySuccess) SaveBlock(estateId string, x int, y int) (*string, error) {
-	blockId := uuid.New().String()
-	return &blockId, nil
+func (m mockStatsEstateQueryByIdNil) QueryAllTree(ctx context.Context, estateId string) ([]model.Tree, error) {
+	panic("not expected to be called")
 }
 
-type mockStatsEstateUseCase struct {
-}
-
-func (s *mockStatsEstateUseCase) GetDronePlanDistance(estateId string, params generated.GetDistanceForDronePlanParams) (generated.GetDronePlanDistance, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (s *mockStatsEstateUseCase) GetStatsEstate(estateId string) (generated.GetStatsEstateResponse, error) {
-	panic("implement me")
-}
-
-func (s *mockStatsEstateUseCase) PublishCalculationStatsEstate(estateId string) {
-
-}
-
-type mockStatsEstateRepositoryError struct {
-}
-
-func (m mockStatsEstateRepositoryError) QueryAllTree(estateId string) ([]model.Tree, error) {
-	panic("implement me")
-}
-
-func (m mockStatsEstateRepositoryError) SaveStatsEstate(estateStats model.EstateStats) error {
-	panic("implement me")
-}
-
-func (m mockStatsEstateRepositoryError) QueryById(estateId string) (*model.EstateStats, error) {
-	return nil, errors.New("connection timeout")
-}
-
-type mockStatsEstateQueryByIdNil struct {
-}
-
-func (m mockStatsEstateQueryByIdNil) QueryAllTree(estateId string) ([]model.Tree, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m mockStatsEstateQueryByIdNil) SaveStatsEstate(estateStats model.EstateStats) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m mockStatsEstateQueryByIdNil) QueryById(estateId string) (*model.EstateStats, error) {
-	return nil, nil
+func (m mockStatsEstateQueryByIdNil) SaveStatsEstate(ctx context.Context, estateStats model.EstateStats) error {
+	panic("not expected to be called")
 }

@@ -1,12 +1,14 @@
 package usecase
 
 import (
+	"context"
+
 	"github.com/ahmadirfaan/plantation-engine/generated"
 	"github.com/ahmadirfaan/plantation-engine/repository"
 )
 
 type EstateUseCase interface {
-	CreateEstate(request generated.CreateEstateRequest) (*string, error)
+	CreateEstate(ctx context.Context, request generated.CreateEstateRequest) (*string, error)
 }
 
 func NewEstateUseCase(estateRepo repository.EstateRepository) EstateUseCase {
@@ -19,12 +21,6 @@ type estateUseCase struct {
 	estateRepository repository.EstateRepository
 }
 
-func (e estateUseCase) CreateEstate(request generated.CreateEstateRequest) (*string, error) {
-
-	id, err := e.estateRepository.SaveEstate(request.Width, request.Length)
-	if err != nil {
-		return nil, err
-	}
-
-	return id, nil
+func (e estateUseCase) CreateEstate(ctx context.Context, request generated.CreateEstateRequest) (*string, error) {
+	return e.estateRepository.SaveEstate(ctx, request.Width, request.Length)
 }

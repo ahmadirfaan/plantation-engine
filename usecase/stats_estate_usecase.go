@@ -1,10 +1,11 @@
 package usecase
 
 import (
+	"context"
 	"errors"
-	"log"
-	"math"
+	"log/slog"
 	"sort"
+	"sync"
 
 	"github.com/ahmadirfaan/plantation-engine/generated"
 	"github.com/ahmadirfaan/plantation-engine/helper"
@@ -14,45 +15,77 @@ import (
 
 type StatsEstateUseCase interface {
 	PublishCalculationStatsEstate(estateId string)
-	GetStatsEstate(estateId string) (generated.GetStatsEstateResponse, error)
-	GetDronePlanDistance(estateId string, params generated.GetDistanceForDronePlanParams) (generated.GetDronePlanDistance, error)
+	GetStatsEstate(ctx context.Context, estateId string) (generated.GetStatsEstateResponse, error)
+	GetDronePlanDistance(ctx context.Context, estateId string, params generated.GetDistanceForDronePlanParams) (generated.GetDronePlanDistance, error)
 }
 
-func NewStatsEstateUseCase(statsEstateRepository repository.StatsEstateRepository, estateRepo repository.EstateRepository) StatsEstateUseCase {
-	statsChannel := make(chan string, 20)
-	dronePlanCache := repository.NewDronePlanCache()
-	statsEstateUseCase := &statsEstateUseCase{
+func NewStatsEstateUseCase(statsEstateRepository repository.StatsEstateRepository, estateRepository repository.EstateRepository) StatsEstateUseCase {
+	s := &statsEstateUseCase{
 		statsEstateRepository: statsEstateRepository,
-		estateRepository:      estateRepo,
-		statsEstateChannel:    statsChannel,
-		dronePlanCache:        dronePlanCache,
+		estateRepository:      estateRepository,
+		dronePlanCache:        repository.NewDronePlanCache(),
+		dirty:                 make(map[string]struct{}),
+		notifyCh:              make(chan struct{}, 1),
 	}
-	go statsEstateUseCase.startWorker()
-	return statsEstateUseCase
+	go s.startWorker()
+	return s
 }
 
 type statsEstateUseCase struct {
 	statsEstateRepository repository.StatsEstateRepository
 	estateRepository      repository.EstateRepository
-	statsEstateChannel    chan string
 	dronePlanCache        *repository.DronePlanCache
+
+	mu       sync.Mutex
+	dirty    map[string]struct{}
+	notifyCh chan struct{}
 }
 
-func (s *statsEstateUseCase) GetDronePlanDistance(estateId string, params generated.GetDistanceForDronePlanParams) (generated.GetDronePlanDistance, error) {
+// PublishCalculationStatsEstate marks the estate as dirty and signals the
+// worker. Multiple calls for the same estate are coalesced into a single
+// recalculation per drain cycle, and the send never blocks the caller.
+func (s *statsEstateUseCase) PublishCalculationStatsEstate(estateId string) {
+	s.mu.Lock()
+	s.dirty[estateId] = struct{}{}
+	s.mu.Unlock()
+
+	select {
+	case s.notifyCh <- struct{}{}:
+	default:
+	}
+}
+
+func (s *statsEstateUseCase) startWorker() {
+	for range s.notifyCh {
+		s.mu.Lock()
+		pending := make([]string, 0, len(s.dirty))
+		for id := range s.dirty {
+			pending = append(pending, id)
+		}
+		s.dirty = make(map[string]struct{})
+		s.mu.Unlock()
+
+		for _, estateId := range pending {
+			s.calculateStatsForEstate(context.Background(), estateId)
+		}
+	}
+}
+
+func (s *statsEstateUseCase) GetDronePlanDistance(ctx context.Context, estateId string, params generated.GetDistanceForDronePlanParams) (generated.GetDronePlanDistance, error) {
 	response := generated.GetDronePlanDistance{}
-	statsEstate, err := s.queryModelStatsEstate(estateId)
+
+	statsEstate, err := s.queryModelStatsEstate(ctx, estateId)
 	if err != nil {
-		return response, err
+		return generated.GetDronePlanDistance{}, err
 	}
 	if statsEstate == nil {
-		return generated.GetDronePlanDistance{
-			Distance: 0,
-		}, nil
+		return response, nil
 	}
+
 	if params.MaxDistance != nil && *params.MaxDistance > 0 {
 		maxDistance := *params.MaxDistance
-		restX, restY := s.findRestCoordinate(estateId, maxDistance, statsEstate)
-		if restX > 0 || restY > 0 {
+		restX, restY := s.findRestCoordinate(ctx, estateId, maxDistance, statsEstate)
+		if restX > 0 && restY > 0 {
 			response.Rest = &struct {
 				X int `json:"x"`
 				Y int `json:"y"`
@@ -62,156 +95,164 @@ func (s *statsEstateUseCase) GetDronePlanDistance(estateId string, params genera
 			}
 		}
 	}
-
 	response.Distance = statsEstate.TotalDistanceDrone
+
 	return response, nil
 }
 
-func (s *statsEstateUseCase) findRestCoordinate(estateId string, maxDistance int, statsEstate *model.EstateStats) (int, int) {
+func (s *statsEstateUseCase) findRestCoordinate(ctx context.Context, estateId string, maxDistance int, statsEstate *model.EstateStats) (int, int) {
 	if maxDistance > statsEstate.TotalDistanceDrone {
-		return helper.LastBlockFinish(statsEstate.Length, statsEstate.Width)
-	}
-	restCoordinateExist, isCacheExist := s.dronePlanCache.Get(estateId, maxDistance)
-	if isCacheExist {
-		return restCoordinateExist.X, restCoordinateExist.Y
+		x, y := helper.LastBlockFinish(statsEstate.Length, statsEstate.Width)
+		return x, y
 	}
 
-	trees, err := s.statsEstateRepository.QueryAllTree(estateId)
+	if coordinate, exists := s.dronePlanCache.Get(estateId, maxDistance); exists {
+		return coordinate.X, coordinate.Y
+	}
+
+	trees, err := s.statsEstateRepository.QueryAllTree(ctx, estateId)
 	if err != nil || len(trees) == 0 {
-		log.Println("error when query all trees")
+		slog.Error("error when query all trees", "estateId", estateId, "error", err)
 		return 0, 0
 	}
 
 	restCoordinate := helper.CheckRestCoordinate(maxDistance, trees, statsEstate.Length, statsEstate.Width)
 	s.dronePlanCache.Set(estateId, maxDistance, restCoordinate)
-	return restCoordinate.X, restCoordinate.Y
 
+	return restCoordinate.X, restCoordinate.Y
 }
 
-func (s *statsEstateUseCase) GetStatsEstate(estateId string) (generated.GetStatsEstateResponse, error) {
-	response := generated.GetStatsEstateResponse{}
-	statsEstate, err := s.queryModelStatsEstate(estateId)
+func (s *statsEstateUseCase) GetStatsEstate(ctx context.Context, estateId string) (generated.GetStatsEstateResponse, error) {
+	statsEstate, err := s.queryModelStatsEstate(ctx, estateId)
 	if err != nil {
-		return response, err
+		return generated.GetStatsEstateResponse{}, err
 	}
 	if statsEstate == nil {
-		response := generated.GetStatsEstateResponse{
-			Count:  0,
-			Max:    0,
-			Min:    0,
-			Median: 0,
-		}
-		return response, nil
+		return generated.GetStatsEstateResponse{}, nil
 	}
 
-	response.Median = float32(statsEstate.MedianHeightTree)
-	response.Count = statsEstate.SumTree
-	response.Max = statsEstate.MaxHeightTree
-	response.Min = statsEstate.MinHeightTree
+	response := generated.GetStatsEstateResponse{
+		Median: float32(statsEstate.MedianHeightTree),
+		Count:  statsEstate.SumTree,
+		Max:    statsEstate.MaxHeightTree,
+		Min:    statsEstate.MinHeightTree,
+	}
+
 	return response, nil
 }
 
-func (s *statsEstateUseCase) queryModelStatsEstate(estateId string) (*model.EstateStats, error) {
-	estate, err := s.estateRepository.QueryByEstateId(estateId)
+func (s *statsEstateUseCase) queryModelStatsEstate(ctx context.Context, estateId string) (*model.EstateStats, error) {
+	estate, err := s.estateRepository.QueryByEstateId(ctx, estateId)
 	if err != nil {
 		return nil, err
 	}
-
 	if estate == nil {
 		return nil, errors.New("404|estate not found")
 	}
 
-	statsEstate, err := s.statsEstateRepository.QueryById(estateId)
+	statsEstate, err := s.statsEstateRepository.QueryById(ctx, estateId)
 	if err != nil {
 		return nil, err
 	}
-
 	if statsEstate == nil {
 		return nil, nil
 	}
 	statsEstate.Width = estate.Width
 	statsEstate.Length = estate.Length
+
 	return statsEstate, nil
 }
 
-func (s *statsEstateUseCase) PublishCalculationStatsEstate(estateId string) {
-	s.statsEstateChannel <- estateId
-}
-
-func (s *statsEstateUseCase) startWorker() {
-	for estateId := range s.statsEstateChannel {
-		// Process the stats calculation when notified
-		s.calculateStatsForEstate(estateId)
-	}
-}
-
-func (s *statsEstateUseCase) calculateStatsForEstate(estateId string) {
-	estate, _ := s.estateRepository.QueryByEstateId(estateId)
-	if estate == nil {
+func (s *statsEstateUseCase) calculateStatsForEstate(ctx context.Context, estateId string) {
+	estate, err := s.estateRepository.QueryByEstateId(ctx, estateId)
+	if err != nil || estate == nil {
+		if err != nil {
+			slog.Error("failed to query estate for stats", "estateId", estateId, "error", err)
+		}
 		return
 	}
 
-	trees, err := s.statsEstateRepository.QueryAllTree(estateId)
+	trees, err := s.statsEstateRepository.QueryAllTree(ctx, estateId)
 	if err != nil || len(trees) == 0 {
-		log.Println("error when query all trees")
+		if err != nil {
+			slog.Error("failed to query all trees for stats", "estateId", estateId, "error", err)
+		}
 		return
 	}
 
-	statsEstate := calculateSummaryStatsEstate(trees)
+	statsEstate := s.calculateSummaryStatsEstate(trees)
 	statsEstate.EstateId = estateId
 
 	helper.CalculateTotalDistanceDrone(trees, *estate, &statsEstate)
 
-	err = s.statsEstateRepository.SaveStatsEstate(statsEstate)
-	if err != nil {
-		log.Println("error when save summary estate")
+	if err := s.statsEstateRepository.SaveStatsEstate(ctx, statsEstate); err != nil {
+		slog.Error("failed to save stats estate", "estateId", estateId, "error", err)
 		return
 	}
 
 	s.dronePlanCache.ClearByEstateId(estateId)
+}
 
+func (s *statsEstateUseCase) calculateSummaryStatsEstate(trees []model.Tree) model.EstateStats {
+	return calculateSummaryStatsEstate(trees)
 }
 
 func calculateSummaryStatsEstate(trees []model.Tree) model.EstateStats {
-
-	heights, minHeight, maxHeight := calculateHeight(trees)
-	median := calculateMedianHeightTree(heights)
-
 	return model.EstateStats{
-		SumTree:          len(trees),
-		MinHeightTree:    minHeight,
-		MaxHeightTree:    maxHeight,
-		MedianHeightTree: median,
+		SumTree:          calculateHeight(trees),
+		MinHeightTree:    calculateMinHeightTree(trees),
+		MaxHeightTree:    calculateMaxHeightTree(trees),
+		MedianHeightTree: calculateMedianHeightTree(trees),
 	}
 }
 
-func calculateMedianHeightTree(heights []float64) float64 {
+func calculateHeight(trees []model.Tree) int {
+	return len(trees)
+}
+
+func calculateMinHeightTree(trees []model.Tree) int {
+	if len(trees) == 0 {
+		return 0
+	}
+	min := trees[0].Height
+	for _, tree := range trees {
+		if tree.Height < min {
+			min = tree.Height
+		}
+	}
+	return min
+}
+
+func calculateMaxHeightTree(trees []model.Tree) int {
+	if len(trees) == 0 {
+		return 0
+	}
+	max := trees[0].Height
+	for _, tree := range trees {
+		if tree.Height > max {
+			max = tree.Height
+		}
+	}
+	return max
+}
+
+func calculateMedianHeightTree(trees []model.Tree) float64 {
+	if len(trees) == 0 {
+		return 0
+	}
+
+	heights := make([]float64, len(trees))
+	for i, tree := range trees {
+		heights[i] = float64(tree.Height)
+	}
+
 	sort.Float64s(heights)
-	var median float64
+
 	n := len(heights)
 	if n%2 == 1 {
-		// Odd count
-		median = heights[n/2]
-	} else {
-		// Even count
-		median = (heights[n/2-1] + heights[n/2]) / 2
+		return heights[n/2]
 	}
-	return median
-}
 
-func calculateHeight(trees []model.Tree) ([]float64, int, int) {
-	heights := make([]float64, len(trees))
-	minHeight := math.MaxInt
-	maxHeight := -math.MaxInt
-	for i, tree := range trees {
-		h := tree.Height
-		heights[i] = float64(h)
-		if tree.Height < minHeight {
-			minHeight = tree.Height
-		}
-		if tree.Height > maxHeight {
-			maxHeight = tree.Height
-		}
-	}
-	return heights, minHeight, maxHeight
+	middle := n / 2
+	return (heights[middle-1] + heights[middle]) / 2
 }
